@@ -354,14 +354,23 @@
     }).join('');
     root.innerHTML=`<article class="card mission-overview"><div class="daily-score"><div class="ring" id="missionRing" style="--value:${p.pct}"><span>${p.total?p.pct:'—'}<small>${parseHalf(missionHalf).half==='H1'?'上期':'下期'}</small></span></div><div class="score-label">${esc(halfName)}の達成率</div></div><div><div class="mission-overview-stats"><div><strong>${missions.length}</strong><span>ミッション</span></div><div><strong>${finished}</strong><span>完了</span></div><div><strong>${p.done}/${p.total||0}</strong><span>タスク完了</span></div><div><strong>${doing}</strong><span>進行中</span></div></div><div class="bar-label"><span>${esc(halfName)}のすべて</span><span>${p.total?p.pct+'%':'—'}</span></div><div class="bar" role="img" aria-label="${esc(halfName)}のタスク進捗 ${p.pct}%"><i style="width:${p.pct}%"></i></div><div class="mission-jumps">${jumps}</div></div></article>`;
   }
+  function halfTabKeys(){
+    const years=new Set([now.getFullYear()-1, now.getFullYear(), now.getFullYear()+1]);
+    state.missions.forEach(m=>years.add(parseHalf(missionPeriodOf(m)).year));
+    years.add(parseHalf(missionHalf).year);
+    const keys=[];
+    [...years].sort((a,b)=>a-b).forEach(year=>{keys.push(`${year}-H1`,`${year}-H2`)});
+    return keys;
+  }
   function updateHalfControl(){
-    const selected=parseHalf(missionHalf);
-    $('#missionYearLabel').textContent=`${selected.year}年`;
-    $('#missionHalfRange').textContent=halfRangeLabel(missionHalf);
-    $('#missionH1').classList.toggle('active',selected.half==='H1');
-    $('#missionH2').classList.toggle('active',selected.half==='H2');
-    $('#missionH1').setAttribute('aria-selected',String(selected.half==='H1'));
-    $('#missionH2').setAttribute('aria-selected',String(selected.half==='H2'));
+    const selected=parseHalf(missionHalf).key;
+    const root=$('#missionHalfTabs');
+    root.innerHTML=halfTabKeys().map(key=>{
+      const active=key===selected;
+      return `<button type="button" role="tab" data-half-key="${key}" aria-selected="${active}" class="${active?'active':''}">${halfLabel(key)}</button>`;
+    }).join('');
+    $('#missionHalfRange').textContent=`${halfLabel(selected)}は${halfRangeLabel(selected)}です。`;
+    root.querySelector('.active')?.scrollIntoView({inline:'nearest',block:'nearest'});
   }
   function visibleMissions(){return state.missions.filter(m=>missionPeriodOf(m)===missionHalf)}
   function renderMissions(){
@@ -681,10 +690,11 @@
   $('#closeDeadlineNotice').onclick=dismissDeadline;
   $('#openMissionFromNotice').onclick=()=>{deadlineSnoozed=true;$('#deadlineNotice').classList.add('hidden');setPage('mission')};
   $('#addMission').onclick=addMission;
-  $('#missionYearPrev').onclick=()=>{const selected=parseHalf(missionHalf);setMissionHalf(`${selected.year-1}-${selected.half}`)};
-  $('#missionYearNext').onclick=()=>{const selected=parseHalf(missionHalf);setMissionHalf(`${selected.year+1}-${selected.half}`)};
-  $('#missionH1').onclick=()=>setMissionHalf(`${parseHalf(missionHalf).year}-H1`);
-  $('#missionH2').onclick=()=>setMissionHalf(`${parseHalf(missionHalf).year}-H2`);
+  $('#missionHalfTabs').onclick=e=>{
+    const tab=e.target.closest('[data-half-key]');
+    if(!tab || tab.dataset.halfKey===parseHalf(missionHalf).key) return;
+    setMissionHalf(tab.dataset.halfKey);
+  };
   $('#addDailyTaskBtn').onclick=addDailyTask;
   $('#addDailyTask').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();addDailyTask()}});
   $('#dailyDate').addEventListener('change',()=>{

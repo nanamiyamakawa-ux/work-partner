@@ -35,11 +35,10 @@
     .mission-jump b { font-size:13px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
     .mission-jump em { font-style:normal; font-size:12px; font-weight:800; color:var(--muted) }
     .mission-add-more { margin-top:16px }
-    .half-bar { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin:0 0 16px }
-    .half-bar strong { min-width:5.2em; text-align:center; font-size:18px }
-    .half-tabs { display:flex; gap:4px; background:#e7f1f4; border-radius:8px; padding:3px }
-    .half-tabs button { background:transparent; color:#5d717c; font-weight:800; border-radius:6px; padding:8px 16px }
-    .half-tabs button.active { background:#fff; color:#0875a3; box-shadow:0 1px 3px rgba(30,54,71,.08) }
+    .half-tabs { display:flex; gap:0; overflow-x:auto; border-bottom:1px solid var(--line); margin:2px 0 6px }
+    .half-tabs button { flex:0 0 auto; background:transparent; color:#5d717c; font-weight:800; border-radius:0; padding:12px 16px; margin-bottom:-1px; border-bottom:3px solid transparent; white-space:nowrap }
+    .half-tabs button.active { color:#1686b8; border-bottom-color:#1686b8 }
+    #missionHalfRange { margin:0 0 16px }
     .mission-head { display:flex; justify-content:space-between; gap:12px; align-items:center; margin-bottom:12px }
     .mission-head h2 { margin:0 }
     .field { display:grid; gap:6px; margin-bottom:12px }
@@ -110,7 +109,8 @@
 
     <section class="page" id="mission">
       <div class="toprow"><div><p class="eyebrow">MISSION</p><h1>ミッション</h1><p class="lede">年の上期（1月〜6月）と下期（7月〜12月）ごとに設定します。選んだ半期の全体進捗が上に出ます。</p></div><button class="primary" id="addMission" type="button">ミッションを追加</button></div>
-      <div class="half-bar"><button class="ghost" id="missionYearPrev" type="button" aria-label="前年">〈</button><strong id="missionYearLabel"></strong><button class="ghost" id="missionYearNext" type="button" aria-label="次年">〉</button><div class="half-tabs" role="tablist" aria-label="半期"><button type="button" id="missionH1" data-half="H1" role="tab">上期</button><button type="button" id="missionH2" data-half="H2" role="tab">下期</button></div><span class="note" id="missionHalfRange"></span></div>
+      <div class="half-tabs" id="missionHalfTabs" role="tablist" aria-label="半期"></div>
+      <p class="note" id="missionHalfRange"></p>
       <div id="missionSummary"></div>
       <div id="missionList"></div>
       <div class="save-row mission-add-more"><button class="primary" type="button" data-action="add-mission">別のミッションを追加</button></div>
