@@ -232,13 +232,52 @@
       return `<div class="track-month"><div class="track-dot ${status}">${s!==null?'✓':weekly?'•':'—'}</div>${Number(month.slice(5))}月</div>`;
     }).join('');
   }
-  function renderReport(){
-    const m=$('#reportMonth').value;
-    const r=state.monthly[m]||{};
-    const reportItems=monthlyItemsFor(m);
-    const sc=score(r,reportItems);
-    $('#reportSheet').innerHTML=`<div class="report-title"><p class="eyebrow">MONTHLY REVIEW REPORT</p><h1>${monthName(m)} 振り返りレポート</h1><div class="report-meta"><dt>達成率</dt><dd>${sc===null?'未入力':sc+'%'}</dd><dt>今月のテーマ</dt><dd>${esc(r.theme||'未設定')}</dd></div></div><h2>チェック結果</h2>${reportItems.length?`<table class="result-table"><thead><tr><th>項目</th><th>結果</th></tr></thead><tbody>${reportItems.map((x,i)=>`<tr><td>${esc(x)}</td><td>${r.answers?.[i]?`<span class="badge ${r.answers[i]}">${r.answers[i]==='yes'?'できた':'できてない'}</span>`:'未回答'}</td></tr>`).join('')}</tbody></table>`:'<div class="empty">月次チェック項目がありません。</div>'}<h2>振り返りメモ</h2><div class="reflection-report">${esc(r.reflection||'まだ記録がありません。')}</div>`;
+  function statusBadge(status){
+    const label=status==='done'?'完了':status==='doing'?'進行中':'未着手';
+    const cls=status==='done'?'yes':status==='doing'?'doing':'todo';
+    return `<span class="badge ${cls}">${label}</span>`;
   }
+  function weekday(date){return '日月火水木金土'[new Date(date+'T00:00:00').getDay()]||''}
+  function missionTouchesMonth(m,month){
+    if((m.due||'').startsWith(month)) return true;
+    if((m.tasks||[]).some(t=>(t.due||'').startsWith(month))) return true;
+    return !m.due && (m.tasks||[]).every(t=>!t.due) && month===current;
+  }
+  function monthSnapshot(month){
+    const monthly=state.monthly[month]||{};
+    const items=monthlyItemsFor(month);
+    const sc=score(monthly,items);
+    const yes=Object.values(monthly.answers||{}).filter(x=>x==='yes').length;
+    const missions=state.missions.filter(m=>missionTouchesMonth(m,month)).map(m=>({...m,tasks:[...(m.tasks||[])],progress:progressOf(m.tasks)}));
+    const missionP=progressOf(missions.flatMap(m=>m.tasks));
+    const days=Object.entries(state.daily).filter(([date,rec])=>date.startsWith(month)&&rec&&((rec.tasks||[]).length||String(rec.reflection||'').trim())).sort(([a],[b])=>a.localeCompare(b)).map(([date,rec])=>({date,tasks:rec.tasks||[],reflection:rec.reflection||'',progress:progressOf(rec.tasks||[])}));
+    const dailyP=progressOf(days.flatMap(d=>d.tasks));
+    const posts=state.learnings.filter(p=>(p.date||'').startsWith(month)).slice().sort((a,b)=>a.date===b.date?String(a.createdAt).localeCompare(String(b.createdAt)):a.date.localeCompare(b.date));
+    const learnDays=new Set(posts.map(p=>p.date)).size;
+    return {month,monthly,items,sc,yes,missions,missionP,days,dailyP,posts,learnDays};
+  }
+  function reportHtml(s){
+    const m=s.month;
+    const checkDetail=s.sc===null?'未入力':`${s.items.length}項目中 ${s.yes}できた`;
+    const missionDetail=s.missions.length?`${s.missions.length}件・タスク ${s.missionP.done}/${s.missionP.total}`:'この月の記録なし';
+    const dailyDetail=s.days.length?`${s.days.length}日・${s.dailyP.done}/${s.dailyP.total}完了`:'この月の記録なし';
+    const learnDetail=s.posts.length?`${s.learnDays}日・${s.posts.length}件`:'この月の記録なし';
+    const kpis=`<div class="report-kpis"><article><span>月次チェック</span><strong>${s.sc===null?'—':s.sc+'%'}</strong><small>${checkDetail}</small></article><article><span>ミッション</span><strong>${s.missionP.total?s.missionP.pct+'%':'—'}</strong><small>${missionDetail}</small></article><article><span>日時タスク</span><strong>${s.dailyP.total?s.dailyP.pct+'%':'—'}</strong><small>${dailyDetail}</small></article><article><span>学び</span><strong>${s.posts.length?s.learnDays+'日':'—'}</strong><small>${learnDetail}</small></article></div>`;
+    const checks=s.items.length?`<table class="result-table"><thead><tr><th>項目</th><th>結果</th></tr></thead><tbody>${s.items.map((x,i)=>`<tr><td>${esc(x)}</td><td>${s.monthly.answers?.[i]?`<span class="badge ${s.monthly.answers[i]}">${s.monthly.answers[i]==='yes'?'できた':'できてない'}</span>`:'未回答'}</td></tr>`).join('')}</tbody></table>`:'<div class="empty">月次チェック項目がありません。</div>';
+    const missions=s.missions.length?s.missions.map(mission=>{
+      const open=mission.tasks.filter(t=>t.status!=='done');
+      const due=mission.due?dayName(mission.due):'期日未設定';
+      const rows=mission.tasks.length?mission.tasks.map(t=>`<tr class="${t.status==='done'?'':'row-open'}"><td>${esc(t.title||'無題のタスク')}</td><td>${statusBadge(t.status)}</td><td>${t.due?dayName(t.due):'—'}</td></tr>`).join(''):`<tr><td colspan="3">タスクはまだありません</td></tr>`;
+      return `<section class="report-mission"><div class="report-mission-head"><div><h3>${esc(mission.title||'無題のミッション')}</h3><p>${esc(due)}${open.length?`・未完了 ${open.length}件`:mission.tasks.length?'・すべて完了':''}</p></div><div class="report-mission-score"><strong>${mission.progress.total?mission.progress.pct+'%':'—'}</strong><div class="bar"><i style="width:${mission.progress.pct}%"></i></div></div></div>${mission.response?`<p class="report-response">${esc(mission.response)}</p>`:''}<table class="result-table"><thead><tr><th>タスク</th><th>状態</th><th>期日</th></tr></thead><tbody>${rows}</tbody></table></section>`;
+    }).join(''):'<div class="empty">この月に期日のあるミッションはありません。期日未設定のミッションは、今月のまとめにだけ出ます。</div>';
+    const daily=s.days.length?`<table class="result-table"><thead><tr><th>日</th><th>進捗</th><th>タスク</th><th>振り返り</th></tr></thead><tbody>${s.days.map(d=>{
+      const names=d.tasks.map(t=>`${t.status==='done'?'✓':'・'}${esc(t.title||'無題')}`).join('<br>')||'—';
+      return `<tr class="${d.progress.total&&d.progress.done===d.progress.total?'':'row-open'}"><td>${Number(d.date.slice(5,7))}月${Number(d.date.slice(8))}日（${weekday(d.date)}）</td><td>${d.progress.total?`${d.progress.done}/${d.progress.total}`:'—'}</td><td>${names}</td><td class="report-memo">${esc(d.reflection||'—')}</td></tr>`;
+    }).join('')}</tbody></table>`:'<div class="empty">この月の日時タスクはありません。</div>';
+    const learn=s.posts.length?s.posts.map(p=>`<article class="learn-post"><div class="learn-post-head"><time>${dayName(p.date)}</time></div><p>${esc(p.text)}</p></article>`).join(''):'<div class="empty">この月の学び記録はありません。</div>';
+    return `<div class="report-title"><p class="eyebrow">MONTHLY REVIEW REPORT</p><h1>${monthName(m)} 振り返りレポート</h1><div class="report-meta"><dt>今月のテーマ</dt><dd>${esc(s.monthly.theme||'未設定')}</dd></div></div>${kpis}<section class="report-block"><h2>月次チェック</h2>${checks}<h3>振り返りメモ</h3><div class="reflection-report">${esc(s.monthly.reflection||'まだ記録がありません。')}</div></section><section class="report-block"><h2>ミッション</h2><p class="note">未完了の行を色付きにしています。達成率は、完了タスク ÷ そのミッションのタスク数です。</p>${missions}</section><section class="report-block"><h2>日時タスク</h2><p class="note">記録のある日を、月初から順に並べています。</p>${daily}</section><section class="report-block"><h2>学び記録</h2>${learn}</section>`;
+  }
+  function renderReport(){$('#reportSheet').innerHTML=reportHtml(monthSnapshot($('#reportMonth').value))}
   function missionTaskRow(t){
     return `<div class="task-row" data-id="${esc(t.id)}"><input class="task-name" value="${esc(t.title)}" placeholder="タスク名" aria-label="タスク名"><input class="task-due form-date" type="date" value="${esc(t.due)}" aria-label="タスクの期日">${statusChoice('m-'+t.id,'m-'+t.id,t.status)}<button type="button" class="delete" data-action="delete-task" data-id="${esc(t.id)}" title="タスクを削除">×</button></div>`;
   }
@@ -617,13 +656,18 @@
   };
   $('#printPdf').onclick=()=>window.print();
   $('#exportExcel').onclick=()=>{
-    const m=$('#reportMonth').value,r=state.monthly[m]||{},reportItems=monthlyItemsFor(m),sc=score(r,reportItems);
-    const html=`<html><meta charset="UTF-8"><table border="1"><tr><th colspan="2">${monthName(m)} 振り返りレポート</th></tr><tr><th>達成率</th><td>${sc??'未入力'}${sc!==null?'%':''}</td></tr><tr><th>テーマ</th><td>${esc(r.theme||'未設定')}</td></tr><tr><th>チェック項目</th><th>結果</th></tr>${reportItems.map((x,i)=>`<tr><td>${esc(x)}</td><td>${r.answers?.[i]==='yes'?'できた':r.answers?.[i]==='no'?'できてない':'未回答'}</td></tr>`).join('')}<tr><th>振り返りメモ</th><td>${esc(r.reflection||'')}</td></tr></table></html>`;
-    download(`${m}_振り返りレポート.xls`,'application/vnd.ms-excel;charset=utf-8',html);
+    const s=monthSnapshot($('#reportMonth').value);
+    const checks=s.items.map((x,i)=>`<tr><td>${esc(x)}</td><td>${s.monthly.answers?.[i]==='yes'?'できた':s.monthly.answers?.[i]==='no'?'できてない':'未回答'}</td></tr>`).join('');
+    const missions=s.missions.flatMap(m=>[`<tr><th colspan="4">${esc(m.title||'無題のミッション')}（${m.progress.total?m.progress.pct+'%':'未設定'}）</th></tr>`,`<tr><td colspan="4">${esc(m.response||'')}</td></tr>`,`<tr><th>タスク</th><th>状態</th><th>期日</th><th></th></tr>`,...(m.tasks.length?m.tasks.map(t=>`<tr><td>${esc(t.title||'')}</td><td>${t.status==='done'?'完了':t.status==='doing'?'進行中':'未着手'}</td><td>${esc(t.due||'')}</td><td></td></tr>`):['<tr><td colspan="4">タスクなし</td></tr>'])]).join('');
+    const daily=s.days.map(d=>`<tr><td>${esc(d.date)}</td><td>${d.progress.done}/${d.progress.total}</td><td>${esc(d.tasks.map(t=>`${t.status==='done'?'完了':'未完了'}:${t.title}`).join(' / '))}</td><td>${esc(d.reflection||'')}</td></tr>`).join('');
+    const posts=s.posts.map(p=>`<tr><td>${esc(p.date)}</td><td colspan="3">${esc(p.text)}</td></tr>`).join('');
+    const html=`<html><meta charset="UTF-8"><table border="1"><tr><th colspan="4">${monthName(s.month)} 振り返りレポート</th></tr><tr><th>月次達成率</th><td>${s.sc??'未入力'}${s.sc!==null?'%':''}</td><th>テーマ</th><td>${esc(s.monthly.theme||'未設定')}</td></tr><tr><th>ミッション達成率</th><td>${s.missionP.total?s.missionP.pct+'%':'未入力'}</td><th>日時タスク達成率</th><td>${s.dailyP.total?s.dailyP.pct+'%':'未入力'}</td></tr><tr><th>学び</th><td colspan="3">${s.learnDays}日・${s.posts.length}件</td></tr><tr><th colspan="4">月次チェック</th></tr><tr><th>項目</th><th>結果</th><th></th><th></th></tr>${checks}<tr><th>振り返りメモ</th><td colspan="3">${esc(s.monthly.reflection||'')}</td></tr><tr><th colspan="4">ミッション</th></tr>${missions||'<tr><td colspan="4">なし</td></tr>'}<tr><th colspan="4">日時タスク</th></tr><tr><th>日</th><th>進捗</th><th>タスク</th><th>振り返り</th></tr>${daily||'<tr><td colspan="4">なし</td></tr>'}<tr><th colspan="4">学び記録</th></tr>${posts||'<tr><td colspan="4">なし</td></tr>'}</table></html>`;
+    download(`${s.month}_振り返りレポート.xls`,'application/vnd.ms-excel;charset=utf-8',html);
   };
 
   $('#homeMonth').value=current;
   $('#formPeriod').value=current;
+  $('#reportMonth').onchange=()=>renderReport();
   $('#reportMonth').value=current;
   $('#dailyDate').value=todayStr;
   $('#learnMonth').value=current;
