@@ -164,7 +164,7 @@
       title:card.querySelector('.mission-title').value,
       response:card.querySelector('.mission-response').value,
       due:card.querySelector('.mission-due').value,
-      period:missionHalf,
+      period:card.querySelector('.mission-period')?.value||missionHalf,
       tasks:[...card.querySelectorAll('.task-row')].map(row=>({
         id:row.dataset.id,
         title:row.querySelector('.task-name').value,
@@ -349,7 +349,9 @@
   function missionCard(m){
     const p=progressOf(m.tasks);
     const label=p.total?`<span>${p.done} / ${p.total} 完了</span><span>${p.pct}%</span>`:'<span>タスクを追加すると進捗が出ます</span><span>—</span>';
-    return `<article class="card mission-card" data-mid="${esc(m.id)}"><div class="mission-head"><h2>${esc(m.title)||'新しいミッション'}</h2><button type="button" class="ghost" data-action="delete-mission" data-id="${esc(m.id)}">削除</button></div><label class="field"><span>ミッション名</span><input class="mission-title" value="${esc(m.title)}" placeholder="例：問い合わせ対応を当日中に返す"></label><label class="field"><span>対応内容</span><textarea class="mission-response" placeholder="何に対して、どこまで、どのように対応するかを書く">${esc(m.response)}</textarea></label><label class="field"><span>ミッションの期日</span><input class="mission-due form-date" type="date" value="${esc(m.due)}"></label><h3>タスク分解</h3><div class="check-list">${m.tasks.length?m.tasks.map(missionTaskRow).join(''):'<div class="empty">内容をタスクに分けると、進捗が見えるようになります。</div>'}</div><div class="add-row"><input class="new-task" placeholder="例：原因を切り分ける"><button type="button" class="small-button primary" data-action="add-task">タスクを追加</button></div><div class="bar-label">${label}</div><div class="bar" role="img" aria-label="タスク進捗 ${p.pct}%"><i style="width:${p.pct}%"></i></div></article>`;
+    const period=missionPeriodOf(m);
+    const options=periodChoices().map(key=>`<option value="${key}" ${key===period?'selected':''}>${halfLabel(key)}</option>`).join('');
+    return `<article class="card mission-card" data-mid="${esc(m.id)}"><div class="mission-head"><h2>${esc(m.title)||'新しいミッション'}</h2><button type="button" class="ghost" data-action="delete-mission" data-id="${esc(m.id)}">削除</button></div><label class="field"><span>期</span><select class="mission-period form-date" aria-label="ミッションの期">${options}</select></label><label class="field"><span>ミッション名</span><input class="mission-title" value="${esc(m.title)}" placeholder="例：問い合わせ対応を当日中に返す"></label><label class="field"><span>対応内容</span><textarea class="mission-response" placeholder="何に対して、どこまで、どのように対応するかを書く">${esc(m.response)}</textarea></label><label class="field"><span>ミッションの期日</span><input class="mission-due form-date" type="date" value="${esc(m.due)}"></label><h3>タスク分解</h3><div class="check-list">${m.tasks.length?m.tasks.map(missionTaskRow).join(''):'<div class="empty">内容をタスクに分けると、進捗が見えるようになります。</div>'}</div><div class="add-row"><input class="new-task" placeholder="例：原因を切り分ける"><button type="button" class="small-button primary" data-action="add-task">タスクを追加</button></div><div class="bar-label">${label}</div><div class="bar" role="img" aria-label="タスク進捗 ${p.pct}%"><i style="width:${p.pct}%"></i></div></article>`;
   }
   function missionHasContent(m){
     if((m.title||'').trim()||(m.response||'').trim()||m.due) return true;
@@ -374,34 +376,42 @@
     }).join('');
     root.innerHTML=`<article class="card mission-overview"><div class="daily-score"><div class="ring" id="missionRing" style="--value:${p.pct}"><span>${p.total?p.pct:'—'}<small>${parseHalf(missionHalf).half==='H1'?'上期':'下期'}</small></span></div><div class="score-label">${esc(halfName)}の達成率</div></div><div><div class="mission-overview-stats"><div><strong>${missions.length}</strong><span>ミッション</span></div><div><strong>${finished}</strong><span>完了</span></div><div><strong>${p.done}/${p.total||0}</strong><span>タスク完了</span></div><div><strong>${doing}</strong><span>進行中</span></div></div><div class="bar-label"><span>${esc(halfName)}のすべて</span><span>${p.total?p.pct+'%':'—'}</span></div><div class="bar" role="img" aria-label="${esc(halfName)}のタスク進捗 ${p.pct}%"><i style="width:${p.pct}%"></i></div><div class="mission-jumps">${jumps}</div></div></article>`;
   }
-  function halfTabKeys(){
-    const years=new Set([now.getFullYear()-1, now.getFullYear(), now.getFullYear()+1]);
+  function periodChoices(){
+    const years=new Set();
+    for(let year=now.getFullYear()-2;year<=now.getFullYear()+2;year++) years.add(year);
     state.missions.forEach(m=>years.add(parseHalf(missionPeriodOf(m)).year));
-    years.add(parseHalf(missionHalf).year);
     const keys=[];
     [...years].sort((a,b)=>a-b).forEach(year=>{keys.push(`${year}-H1`,`${year}-H2`)});
     return keys;
   }
+  function halfTabKeys(){
+    return [...new Set(state.missions.map(m=>missionPeriodOf(m)))].sort((a,b)=>a.localeCompare(b));
+  }
   function updateHalfControl(){
+    const keys=halfTabKeys();
     const selected=parseHalf(missionHalf).key;
     const root=$('#missionHalfTabs');
-    root.innerHTML=halfTabKeys().map(key=>{
+    root.innerHTML=keys.map(key=>{
       const active=key===selected;
       return `<button type="button" role="tab" data-half-key="${key}" aria-selected="${active}" class="${active?'active':''}">${halfLabel(key)}</button>`;
     }).join('');
-    $('#missionHalfRange').textContent=`${halfLabel(selected)}は${halfRangeLabel(selected)}です。`;
+    root.hidden=!keys.length;
+    $('#missionHalfRange').textContent=keys.includes(selected)?`${halfLabel(selected)}は${halfRangeLabel(selected)}です。同じ期のミッションが、このタブに並びます。`:'';
     root.querySelector('.active')?.scrollIntoView({inline:'nearest',block:'nearest'});
   }
   function visibleMissions(){return state.missions.filter(m=>missionPeriodOf(m)===missionHalf)}
   function renderMissions(){
+    const keys=halfTabKeys();
+    if(keys.length && !keys.includes(parseHalf(missionHalf).key)) missionHalf=keys[0];
     updateHalfControl();
-    renderMissionSummary();
     const root=$('#missionList');
     const missions=visibleMissions();
     if(!missions.length){
-      root.innerHTML=`<div class="empty">${esc(halfLabel(missionHalf))}（${esc(halfRangeLabel(missionHalf))}）のミッションはまだありません。「ミッションを追加」から登録できます。</div>`;
+      $('#missionSummary').innerHTML='';
+      root.innerHTML='<div class="empty">ミッションを追加して期を選ぶと、その期のタブができます。同じ期のミッションは、そのタブの中に並びます。</div>';
       return;
     }
+    renderMissionSummary();
     root.innerHTML=missions.map(missionCard).join('');
   }
   function setMissionHalf(key){
@@ -655,10 +665,12 @@
     if(e.target.id==='dailyDate') return;
     const mission=e.target.closest('.mission-card');
     if(mission){
+      const movedPeriod=e.target.classList.contains('mission-period')?e.target.value:'';
       commitMissionsFromDom();
+      if(movedPeriod) missionHalf=parseHalf(movedPeriod).key;
       saveState();
-      paintMissionProgress(mission);
-      renderMissionSummary();
+      if(movedPeriod) renderMissions();
+      else { paintMissionProgress(mission); renderMissionSummary(); }
       return;
     }
     if(e.target.closest('#dailyCard')){

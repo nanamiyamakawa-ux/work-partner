@@ -45,6 +45,7 @@
     .mission-head { display:flex; justify-content:space-between; gap:12px; align-items:center; margin-bottom:12px }
     .mission-head h2 { margin:0 }
     .field { display:grid; gap:6px; margin-bottom:12px }
+    .mission-period { max-width:240px; background:#fff }
     .field span { font-size:13px; font-weight:800 }
     .bar { height:10px; border-radius:99px; background:#e6eef1; overflow:hidden }
     .bar i { display:block; height:100%; width:0; background:linear-gradient(90deg,#1686b8,#20aa9f) }
@@ -117,7 +118,7 @@
     </section>
 
     <section class="page" id="mission">
-      <div class="toprow"><div><p class="eyebrow">MISSION</p><h1>ミッション</h1><p class="lede">年の上期（1月〜6月）と下期（7月〜12月）ごとに、ミッションと進捗を設定します。</p></div><button class="primary" id="addMission" type="button">ミッションを追加</button></div>
+      <div class="toprow"><div><p class="eyebrow">MISSION</p><h1>ミッション</h1><p class="lede">各ミッションで期（YYYY年上期・YYYY年下期）を選びます。その期の1件目を追加するとタブができ、同じ期のミッションがその中に並びます。</p></div><button class="primary" id="addMission" type="button">ミッションを追加</button></div>
       <div class="half-tabs" id="missionHalfTabs" role="tablist" aria-label="半期"></div>
       <p class="note" id="missionHalfRange"></p>
       <div id="missionSummary"></div>
