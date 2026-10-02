@@ -14,6 +14,23 @@
   let dailyShown=todayStr;
   let domReady=false;
   let deadlineSnoozed=false;
+  const currentHalfKey=()=>`${now.getFullYear()}-${now.getMonth()<6?'H1':'H2'}`;
+  function halfFromDate(dateStr){
+    if(!/^\d{4}-\d{2}/.test(dateStr||'')) return '';
+    const [year,month]=String(dateStr).split('-').map(Number);
+    if(!year||!month) return '';
+    return `${year}-${month<=6?'H1':'H2'}`;
+  }
+  function parseHalf(key){
+    const matched=String(key||'').match(/^(\d{4})-H([12])$/);
+    const fallback=matched?null:currentHalfKey().match(/^(\d{4})-H([12])$/);
+    const used=matched||fallback;
+    return {year:Number(used[1]),half:used[2]==='1'?'H1':'H2',key:`${used[1]}-H${used[2]}`};
+  }
+  function halfLabel(key){const p=parseHalf(key);return `${p.year}年${p.half==='H1'?'上期':'下期'}`}
+  function halfRangeLabel(key){return parseHalf(key).half==='H1'?'1月〜6月':'7月〜12月'}
+  function missionPeriodOf(m){return /^(?:\d{4})-H[12]$/.test(m?.period)?m.period:(halfFromDate(m?.due)||currentHalfKey())}
+  let missionHalf=currentHalfKey();
 
   function normalize(raw){
     const s=raw && typeof raw==='object' ? raw : {};
@@ -30,6 +47,7 @@
       title:m?.title||'',
       response:m?.response||'',
       due:m?.due||'',
+      period:/^(?:\d{4})-H[12]$/.test(m?.period)?m.period:(halfFromDate(m?.due)||(Array.isArray(m?.tasks)?halfFromDate(m.tasks.map(t=>t?.due).find(Boolean)):'')||currentHalfKey()),
       tasks:Array.isArray(m?.tasks)?m.tasks.map(t=>({
         id:t?.id||uid(),
         title:t?.title||'',
@@ -140,11 +158,12 @@
     if(!domReady || !$('#missionList')) return;
     const cards=[...document.querySelectorAll('#missionList .mission-card')];
     if(!cards.length) return;
-    state.missions=cards.map(card=>({
+    const current=cards.map(card=>({
       id:card.dataset.mid,
       title:card.querySelector('.mission-title').value,
       response:card.querySelector('.mission-response').value,
       due:card.querySelector('.mission-due').value,
+      period:missionHalf,
       tasks:[...card.querySelectorAll('.task-row')].map(row=>({
         id:row.dataset.id,
         title:row.querySelector('.task-name').value,
@@ -152,6 +171,8 @@
         status:row.querySelector('input[type="radio"]:checked')?.value||'todo'
       }))
     }));
+    const ids=new Set(current.map(m=>m.id));
+    state.missions=[...current,...state.missions.filter(m=>missionPeriodOf(m)!==missionHalf && !ids.has(m.id))];
   }
   function commitDailyFromDom(){
     if(!domReady || !$('#dailyTasks')) return;
@@ -269,7 +290,7 @@
   function missionTouchesMonth(m,month){
     if((m.due||'').startsWith(month)) return true;
     if((m.tasks||[]).some(t=>(t.due||'').startsWith(month))) return true;
-    return !m.due && (m.tasks||[]).every(t=>!t.due) && month===current;
+    return !m.due && (m.tasks||[]).every(t=>!t.due) && month===current && missionPeriodOf(m)===halfFromDate(current+'-01');
   }
   function monthSnapshot(month){
     const monthly=state.monthly[month]||{};
@@ -297,7 +318,7 @@
       const due=mission.due?dayName(mission.due):'期日未設定';
       const rows=mission.tasks.length?mission.tasks.map(t=>`<tr class="${t.status==='done'?'':'row-open'}"><td>${esc(t.title||'無題のタスク')}</td><td>${statusBadge(t.status)}</td><td>${t.due?dayName(t.due):'—'}</td></tr>`).join(''):`<tr><td colspan="3">タスクはまだありません</td></tr>`;
       return `<section class="report-mission"><div class="report-mission-head"><div><h3>${esc(mission.title||'無題のミッション')}</h3><p>${esc(due)}${open.length?`・未完了 ${open.length}件`:mission.tasks.length?'・すべて完了':''}</p></div><div class="report-mission-score"><strong>${mission.progress.total?mission.progress.pct+'%':'—'}</strong><div class="bar"><i style="width:${mission.progress.pct}%"></i></div></div></div>${mission.response?`<p class="report-response">${esc(mission.response)}</p>`:''}<table class="result-table"><thead><tr><th>タスク</th><th>状態</th><th>期日</th></tr></thead><tbody>${rows}</tbody></table></section>`;
-    }).join(''):'<div class="empty">この月に期日のあるミッションはありません。期日未設定のミッションは、今月のまとめにだけ出ます。</div>';
+    }).join(''):'<div class="empty">この月に期日のあるミッションはありません。期日未設定のミッションは、その半期のうち今月のまとめにだけ出ます。</div>';
     const daily=s.days.length?`<table class="result-table"><thead><tr><th>日</th><th>進捗</th><th>タスク</th><th>振り返り</th></tr></thead><tbody>${s.days.map(d=>{
       const names=d.tasks.map(t=>`${t.status==='done'?'✓':'・'}${esc(t.title||'無題')}`).join('<br>')||'—';
       return `<tr class="${d.progress.total&&d.progress.done===d.progress.total?'':'row-open'}"><td>${Number(d.date.slice(5,7))}月${Number(d.date.slice(8))}日（${weekday(d.date)}）</td><td>${d.progress.total?`${d.progress.done}/${d.progress.total}`:'—'}</td><td>${names}</td><td class="report-memo">${esc(d.reflection||'—')}</td></tr>`;
@@ -317,29 +338,48 @@
   function renderMissionSummary(){
     const root=$('#missionSummary');
     if(!root) return;
-    const missions=state.missions;
+    const missions=state.missions.filter(m=>missionPeriodOf(m)===missionHalf);
+    const halfName=halfLabel(missionHalf);
     const tasks=missions.flatMap(m=>m.tasks||[]);
     const p=progressOf(tasks);
     const doing=tasks.filter(t=>t.status==='doing').length;
     const finished=missions.filter(m=>(m.tasks||[]).length>0 && m.tasks.every(t=>t.status==='done')).length;
     if(!missions.length){
-      root.innerHTML='<article class="card mission-overview"><div><h2>全体の進捗</h2><p class="note">ミッションを追加すると、件数とタスク全体の達成率がここに出ます。</p></div></article>';
+      root.innerHTML=`<article class="card mission-overview"><div><h2>${esc(halfName)}の進捗</h2><p class="note">${esc(halfRangeLabel(missionHalf))}のミッションを追加すると、件数とタスク全体の達成率がここに出ます。</p></div></article>`;
       return;
     }
     const jumps=missions.map(m=>{
       const mp=progressOf(m.tasks);
       return `<button type="button" class="mission-jump" data-mid="${esc(m.id)}"><b>${esc(m.title||'新しいミッション')}</b><em>${mp.total?`${mp.done}/${mp.total}`:'タスクなし'}</em><span class="bar" aria-hidden="true"><i style="width:${mp.pct}%"></i></span></button>`;
     }).join('');
-    root.innerHTML=`<article class="card mission-overview"><div class="daily-score"><div class="ring" id="missionRing" style="--value:${p.pct}"><span>${p.total?p.pct:'—'}<small>全体</small></span></div><div class="score-label">全タスクの達成率</div></div><div><div class="mission-overview-stats"><div><strong>${missions.length}</strong><span>ミッション</span></div><div><strong>${finished}</strong><span>完了</span></div><div><strong>${p.done}/${p.total||0}</strong><span>タスク完了</span></div><div><strong>${doing}</strong><span>進行中</span></div></div><div class="bar-label"><span>すべてのミッション</span><span>${p.total?p.pct+'%':'—'}</span></div><div class="bar" role="img" aria-label="全体のタスク進捗 ${p.pct}%"><i style="width:${p.pct}%"></i></div><div class="mission-jumps">${jumps}</div></div></article>`;
+    root.innerHTML=`<article class="card mission-overview"><div class="daily-score"><div class="ring" id="missionRing" style="--value:${p.pct}"><span>${p.total?p.pct:'—'}<small>${parseHalf(missionHalf).half==='H1'?'上期':'下期'}</small></span></div><div class="score-label">${esc(halfName)}の達成率</div></div><div><div class="mission-overview-stats"><div><strong>${missions.length}</strong><span>ミッション</span></div><div><strong>${finished}</strong><span>完了</span></div><div><strong>${p.done}/${p.total||0}</strong><span>タスク完了</span></div><div><strong>${doing}</strong><span>進行中</span></div></div><div class="bar-label"><span>${esc(halfName)}のすべて</span><span>${p.total?p.pct+'%':'—'}</span></div><div class="bar" role="img" aria-label="${esc(halfName)}のタスク進捗 ${p.pct}%"><i style="width:${p.pct}%"></i></div><div class="mission-jumps">${jumps}</div></div></article>`;
   }
+  function updateHalfControl(){
+    const selected=parseHalf(missionHalf);
+    $('#missionYearLabel').textContent=`${selected.year}年`;
+    $('#missionHalfRange').textContent=halfRangeLabel(missionHalf);
+    $('#missionH1').classList.toggle('active',selected.half==='H1');
+    $('#missionH2').classList.toggle('active',selected.half==='H2');
+    $('#missionH1').setAttribute('aria-selected',String(selected.half==='H1'));
+    $('#missionH2').setAttribute('aria-selected',String(selected.half==='H2'));
+  }
+  function visibleMissions(){return state.missions.filter(m=>missionPeriodOf(m)===missionHalf)}
   function renderMissions(){
+    updateHalfControl();
     renderMissionSummary();
     const root=$('#missionList');
-    if(!state.missions.length){
-      root.innerHTML='<div class="empty">「ミッションを追加」から、いくつでも登録できます。それぞれの対応内容とタスクは、カードごとに分かれます。</div>';
+    const missions=visibleMissions();
+    if(!missions.length){
+      root.innerHTML=`<div class="empty">${esc(halfLabel(missionHalf))}（${esc(halfRangeLabel(missionHalf))}）のミッションはまだありません。「ミッションを追加」から登録できます。</div>`;
       return;
     }
-    root.innerHTML=state.missions.map(missionCard).join('');
+    root.innerHTML=missions.map(missionCard).join('');
+  }
+  function setMissionHalf(key){
+    commitMissionsFromDom();
+    missionHalf=parseHalf(key).key;
+    saveState();
+    renderMissions();
   }
   function paintMissionProgress(card){
     if(!card) return;
@@ -470,7 +510,7 @@
   function csvEscape(v){return '"'+String(v).replaceAll('"','""')+'"'}
   function addMission(){
     commitMissionsFromDom();
-    state.missions.unshift({id:uid(),title:'',response:'',due:'',tasks:[]});
+    state.missions.unshift({id:uid(),title:'',response:'',due:'',period:missionHalf,tasks:[]});
     renderMissions();
     saveState();
     const added=$('#missionList .mission-card');
@@ -641,6 +681,10 @@
   $('#closeDeadlineNotice').onclick=dismissDeadline;
   $('#openMissionFromNotice').onclick=()=>{deadlineSnoozed=true;$('#deadlineNotice').classList.add('hidden');setPage('mission')};
   $('#addMission').onclick=addMission;
+  $('#missionYearPrev').onclick=()=>{const selected=parseHalf(missionHalf);setMissionHalf(`${selected.year-1}-${selected.half}`)};
+  $('#missionYearNext').onclick=()=>{const selected=parseHalf(missionHalf);setMissionHalf(`${selected.year+1}-${selected.half}`)};
+  $('#missionH1').onclick=()=>setMissionHalf(`${parseHalf(missionHalf).year}-H1`);
+  $('#missionH2').onclick=()=>setMissionHalf(`${parseHalf(missionHalf).year}-H2`);
   $('#addDailyTaskBtn').onclick=addDailyTask;
   $('#addDailyTask').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();addDailyTask()}});
   $('#dailyDate').addEventListener('change',()=>{
