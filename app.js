@@ -645,7 +645,6 @@
     const btn=e.target.closest('[data-action]');
     if(!btn) return;
     const action=btn.dataset.action;
-    if(action==='add-mission') addMission();
     if(action==='add-task') addMissionTask(btn);
     if(action==='delete-mission') deleteMission(btn.dataset.id);
     if(action==='delete-task') deleteMissionTask(btn.dataset.id);
