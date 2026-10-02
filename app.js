@@ -314,10 +314,29 @@
     const label=p.total?`<span>${p.done} / ${p.total} 完了</span><span>${p.pct}%</span>`:'<span>タスクを追加すると進捗が出ます</span><span>—</span>';
     return `<article class="card mission-card" data-mid="${esc(m.id)}"><div class="mission-head"><h2>${esc(m.title)||'新しいミッション'}</h2><button type="button" class="ghost" data-action="delete-mission" data-id="${esc(m.id)}">削除</button></div><label class="field"><span>ミッション名</span><input class="mission-title" value="${esc(m.title)}" placeholder="例：問い合わせ対応を当日中に返す"></label><label class="field"><span>対応内容</span><textarea class="mission-response" placeholder="何に対して、どこまで、どのように対応するかを書く">${esc(m.response)}</textarea></label><label class="field"><span>ミッションの期日</span><input class="mission-due form-date" type="date" value="${esc(m.due)}"></label><h3>タスク分解</h3><div class="check-list">${m.tasks.length?m.tasks.map(missionTaskRow).join(''):'<div class="empty">内容をタスクに分けると、進捗が見えるようになります。</div>'}</div><div class="add-row"><input class="new-task" placeholder="例：原因を切り分ける"><button type="button" class="small-button primary" data-action="add-task">タスクを追加</button></div><div class="bar-label">${label}</div><div class="bar" role="img" aria-label="タスク進捗 ${p.pct}%"><i style="width:${p.pct}%"></i></div></article>`;
   }
+  function renderMissionSummary(){
+    const root=$('#missionSummary');
+    if(!root) return;
+    const missions=state.missions;
+    const tasks=missions.flatMap(m=>m.tasks||[]);
+    const p=progressOf(tasks);
+    const doing=tasks.filter(t=>t.status==='doing').length;
+    const finished=missions.filter(m=>(m.tasks||[]).length>0 && m.tasks.every(t=>t.status==='done')).length;
+    if(!missions.length){
+      root.innerHTML='<article class="card mission-overview"><div><h2>全体の進捗</h2><p class="note">ミッションを追加すると、件数とタスク全体の達成率がここに出ます。</p></div></article>';
+      return;
+    }
+    const jumps=missions.map(m=>{
+      const mp=progressOf(m.tasks);
+      return `<button type="button" class="mission-jump" data-mid="${esc(m.id)}"><b>${esc(m.title||'新しいミッション')}</b><em>${mp.total?`${mp.done}/${mp.total}`:'タスクなし'}</em><span class="bar" aria-hidden="true"><i style="width:${mp.pct}%"></i></span></button>`;
+    }).join('');
+    root.innerHTML=`<article class="card mission-overview"><div class="daily-score"><div class="ring" id="missionRing" style="--value:${p.pct}"><span>${p.total?p.pct:'—'}<small>全体</small></span></div><div class="score-label">全タスクの達成率</div></div><div><div class="mission-overview-stats"><div><strong>${missions.length}</strong><span>ミッション</span></div><div><strong>${finished}</strong><span>完了</span></div><div><strong>${p.done}/${p.total||0}</strong><span>タスク完了</span></div><div><strong>${doing}</strong><span>進行中</span></div></div><div class="bar-label"><span>すべてのミッション</span><span>${p.total?p.pct+'%':'—'}</span></div><div class="bar" role="img" aria-label="全体のタスク進捗 ${p.pct}%"><i style="width:${p.pct}%"></i></div><div class="mission-jumps">${jumps}</div></div></article>`;
+  }
   function renderMissions(){
+    renderMissionSummary();
     const root=$('#missionList');
     if(!state.missions.length){
-      root.innerHTML='<div class="empty">ミッションを追加すると、対応内容・タスク分解・進捗をここで管理できます。期日の3日前から、画面を開いたときにお知らせします。</div>';
+      root.innerHTML='<div class="empty">「ミッションを追加」から、いくつでも登録できます。それぞれの対応内容とタスクは、カードごとに分かれます。</div>';
       return;
     }
     root.innerHTML=state.missions.map(missionCard).join('');
@@ -454,7 +473,9 @@
     state.missions.unshift({id:uid(),title:'',response:'',due:'',tasks:[]});
     renderMissions();
     saveState();
-    $('#missionList .mission-title')?.focus();
+    const added=$('#missionList .mission-card');
+    added?.scrollIntoView({block:'nearest'});
+    added?.querySelector('.mission-title')?.focus();
   }
   function addMissionTask(btn){
     const card=btn.closest('.mission-card');
@@ -540,6 +561,11 @@
       toast('項目を削除しました');
       return;
     }
+    const missionJump=e.target.closest('.mission-jump');
+    if(missionJump){
+      document.querySelector(`#missionList .mission-card[data-mid="${CSS.escape(missionJump.dataset.mid)}"]`)?.scrollIntoView({behavior:'smooth',block:'start'});
+      return;
+    }
     const day=e.target.closest('#learnCalendar [data-date]');
     if(day){
       $('#learnDate').value=day.dataset.date;
@@ -550,6 +576,7 @@
     const btn=e.target.closest('[data-action]');
     if(!btn) return;
     const action=btn.dataset.action;
+    if(action==='add-mission') addMission();
     if(action==='add-task') addMissionTask(btn);
     if(action==='delete-mission') deleteMission(btn.dataset.id);
     if(action==='delete-task') deleteMissionTask(btn.dataset.id);
@@ -563,6 +590,7 @@
       commitMissionsFromDom();
       saveState();
       paintMissionProgress(mission);
+      renderMissionSummary();
       return;
     }
     if(e.target.closest('#dailyCard')){

@@ -25,6 +25,16 @@
 
     nav { flex-wrap:wrap; max-width:780px; justify-content:flex-end }
     .mission-card + .mission-card { margin-top:16px }
+    .mission-overview { display:grid; grid-template-columns:148px 1fr; gap:18px; align-items:center; margin-bottom:16px }
+    .mission-overview-stats { display:flex; gap:18px; flex-wrap:wrap; margin-bottom:12px }
+    .mission-overview-stats div { min-width:72px }
+    .mission-overview-stats strong { display:block; font-size:22px; letter-spacing:-.04em; color:#0f739f }
+    .mission-overview-stats span { color:var(--muted); font-size:12px; font-weight:800 }
+    .mission-jumps { display:grid; gap:8px }
+    .mission-jump { display:grid; grid-template-columns:minmax(0,1fr) auto 120px; gap:10px; align-items:center; width:100%; text-align:left; background:#f7fbfc; border:1px solid var(--line); border-radius:8px; padding:8px 10px; color:inherit }
+    .mission-jump b { font-size:13px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
+    .mission-jump em { font-style:normal; font-size:12px; font-weight:800; color:var(--muted) }
+    .mission-add-more { margin-top:16px }
     .mission-head { display:flex; justify-content:space-between; gap:12px; align-items:center; margin-bottom:12px }
     .mission-head h2 { margin:0 }
     .field { display:grid; gap:6px; margin-bottom:12px }
@@ -78,6 +88,9 @@
       nav { max-width:none; width:100%; justify-content:flex-start; flex-wrap:nowrap; overflow-x:auto }
       nav button { flex:0 0 auto !important }
       .task-row { grid-template-columns:1fr }
+      .mission-overview { grid-template-columns:1fr; justify-items:center }
+      .mission-jump { grid-template-columns:minmax(0,1fr) auto; }
+      .mission-jump .bar { grid-column:1 / -1 }
       .daily-actions { justify-content:flex-start; flex-wrap:wrap }
     }
   </style>
@@ -91,8 +104,10 @@
     </section>
 
     <section class="page" id="mission">
-      <div class="toprow"><div><p class="eyebrow">MISSION</p><h1>ミッション</h1><p class="lede">対応内容を書いてタスクに分解し、進捗を確認します。期日が3日以内、または過ぎているものは開いたときにお知らせします。</p></div><button class="primary" id="addMission" type="button">ミッションを追加</button></div>
+      <div class="toprow"><div><p class="eyebrow">MISSION</p><h1>ミッション</h1><p class="lede">ミッションはいくつでも追加できます。上の全体進捗で、全部の進み具合をまとめて見られます。</p></div><button class="primary" id="addMission" type="button">ミッションを追加</button></div>
+      <div id="missionSummary"></div>
       <div id="missionList"></div>
+      <div class="save-row mission-add-more"><button class="primary" type="button" data-action="add-mission">別のミッションを追加</button></div>
     </section>
     <section class="page" id="daily">
       <div class="toprow"><div><p class="eyebrow">DAILY TASKS</p><h1>日時タスク</h1><p class="lede">選んだ日のタスクを進めて、そのあとに振り返ります。</p></div></div>
