@@ -44,7 +44,7 @@
   function halfRangeLabel(key){
     const p=parseHalf(key);
     const startYear=termOriginYear+(p.number-termOrigin);
-    return p.half==='H1'?`${startYear}年4月〜${startYear}年9月`:`${startYear}年10月〜${startYear+1}年3月`;
+    return p.half==='H1'?`${startYear}/4/1〜${startYear}/9/30`:`${startYear}/10/1〜${startYear+1}/3/31`;
   }
   function missionPeriodOf(m){return canonicalPeriod(m?.period)||halfFromDate(m?.due)||currentHalfKey()}
   let missionHalf=currentHalfKey();
