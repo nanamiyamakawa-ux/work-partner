@@ -14,22 +14,39 @@
   let dailyShown=todayStr;
   let domReady=false;
   let deadlineSnoozed=false;
-  const currentHalfKey=()=>`${now.getFullYear()}-${now.getMonth()<6?'H1':'H2'}`;
-  function halfFromDate(dateStr){
-    if(!/^\d{4}-\d{2}/.test(dateStr||'')) return '';
+  const termOrigin=17;
+  const termOriginYear=2026;
+  function fiscalFromDate(dateStr){
+    if(!/^\d{4}-\d{2}/.test(dateStr||'')) return null;
     const [year,month]=String(dateStr).split('-').map(Number);
-    if(!year||!month) return '';
-    return `${year}-${month<=6?'H1':'H2'}`;
+    if(!year||!month) return null;
+    const anchor=month>=4?year:year-1;
+    const number=termOrigin+(anchor-termOriginYear);
+    const half=month>=4&&month<=9?'H1':'H2';
+    return {number,half,key:`${number}-${half}`};
+  }
+  function currentHalfKey(){return fiscalFromDate(isoDate(now)).key}
+  function halfFromDate(dateStr){return fiscalFromDate(dateStr)?.key||''}
+  function canonicalPeriod(raw){
+    const text=String(raw||'');
+    const term=text.match(/^(\d{1,2})-H([12])$/);
+    if(term) return `${Number(term[1])}-H${term[2]}`;
+    const old=text.match(/^(\d{4})-H([12])$/);
+    if(!old) return '';
+    return fiscalFromDate(`${old[1]}-${old[2]==='1'?'06':'10'}-01`).key;
   }
   function parseHalf(key){
-    const matched=String(key||'').match(/^(\d{4})-H([12])$/);
-    const fallback=matched?null:currentHalfKey().match(/^(\d{4})-H([12])$/);
-    const used=matched||fallback;
-    return {year:Number(used[1]),half:used[2]==='1'?'H1':'H2',key:`${used[1]}-H${used[2]}`};
+    const canon=canonicalPeriod(key)||currentHalfKey();
+    const matched=canon.match(/^(\d+)-H([12])$/);
+    return {number:Number(matched[1]),half:matched[2]==='1'?'H1':'H2',key:canon};
   }
-  function halfLabel(key){const p=parseHalf(key);return `${p.year}年${p.half==='H1'?'上期':'下期'}`}
-  function halfRangeLabel(key){return parseHalf(key).half==='H1'?'1月〜6月':'7月〜12月'}
-  function missionPeriodOf(m){return /^(?:\d{4})-H[12]$/.test(m?.period)?m.period:(halfFromDate(m?.due)||currentHalfKey())}
+  function halfLabel(key){const p=parseHalf(key);return `${p.number}期${p.half==='H1'?'上期':'下期'}`}
+  function halfRangeLabel(key){
+    const p=parseHalf(key);
+    const startYear=termOriginYear+(p.number-termOrigin);
+    return p.half==='H1'?`${startYear}年4月〜${startYear}年9月`:`${startYear}年10月〜${startYear+1}年3月`;
+  }
+  function missionPeriodOf(m){return canonicalPeriod(m?.period)||halfFromDate(m?.due)||currentHalfKey()}
   let missionHalf=currentHalfKey();
 
   function normalize(raw){
@@ -47,7 +64,7 @@
       title:m?.title||'',
       response:m?.response||'',
       due:m?.due||'',
-      period:/^(?:\d{4})-H[12]$/.test(m?.period)?m.period:(halfFromDate(m?.due)||(Array.isArray(m?.tasks)?halfFromDate(m.tasks.map(t=>t?.due).find(Boolean)):'')||currentHalfKey()),
+      period:canonicalPeriod(m?.period)||halfFromDate(m?.due)||(Array.isArray(m?.tasks)?halfFromDate(m.tasks.map(t=>t?.due).find(Boolean)):'')||currentHalfKey(),
       tasks:Array.isArray(m?.tasks)?m.tasks.map(t=>({
         id:t?.id||uid(),
         title:t?.title||'',
@@ -376,16 +393,21 @@
     }).join('');
     root.innerHTML=`<article class="card mission-overview"><div class="daily-score"><div class="ring" id="missionRing" style="--value:${p.pct}"><span>${p.total?p.pct:'—'}<small>${parseHalf(missionHalf).half==='H1'?'上期':'下期'}</small></span></div><div class="score-label">${esc(halfName)}の達成率</div></div><div><div class="mission-overview-stats"><div><strong>${missions.length}</strong><span>ミッション</span></div><div><strong>${finished}</strong><span>完了</span></div><div><strong>${p.done}/${p.total||0}</strong><span>タスク完了</span></div><div><strong>${doing}</strong><span>進行中</span></div></div><div class="bar-label"><span>${esc(halfName)}のすべて</span><span>${p.total?p.pct+'%':'—'}</span></div><div class="bar" role="img" aria-label="${esc(halfName)}のタスク進捗 ${p.pct}%"><i style="width:${p.pct}%"></i></div><div class="mission-jumps">${jumps}</div></div></article>`;
   }
+  function comparePeriod(a,b){
+    const pa=parseHalf(a),pb=parseHalf(b);
+    return pa.number-pb.number||(pa.half===pb.half?0:pa.half==='H1'?-1:1);
+  }
   function periodChoices(){
-    const years=new Set();
-    for(let year=now.getFullYear()-2;year<=now.getFullYear()+2;year++) years.add(year);
-    state.missions.forEach(m=>years.add(parseHalf(missionPeriodOf(m)).year));
     const keys=[];
-    [...years].sort((a,b)=>a-b).forEach(year=>{keys.push(`${year}-H1`,`${year}-H2`)});
-    return keys;
+    for(let number=termOrigin;number<=termOrigin+5;number++){
+      if(number!==termOrigin) keys.push(`${number}-H1`);
+      keys.push(`${number}-H2`);
+    }
+    state.missions.forEach(m=>{const key=missionPeriodOf(m);if(!keys.includes(key)) keys.push(key)});
+    return keys.sort(comparePeriod);
   }
   function halfTabKeys(){
-    return [...new Set(state.missions.map(m=>missionPeriodOf(m)))].sort((a,b)=>a.localeCompare(b));
+    return [...new Set(state.missions.map(m=>missionPeriodOf(m)))].sort(comparePeriod);
   }
   function updateHalfControl(){
     const keys=halfTabKeys();
