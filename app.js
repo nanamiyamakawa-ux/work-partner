@@ -165,8 +165,36 @@
       reflection:$('#dailyReflection').value
     };
   }
-  function commitOpenForms(){commitMissionsFromDom();commitDailyFromDom()}
-  function persist(){commitOpenForms();saveState();renderAll()}
+  function commitCheckFromDom(){
+    if(!domReady || !$('#formPeriod') || !$('#reflectionInput')) return;
+    const period=$('#formPeriod').value;
+    if(!period) return;
+    if(mode==='monthly'){
+      const items=monthlyItemsFor(period);
+      const answers={};
+      items.forEach((_,i)=>{const v=document.querySelector(`input[name="check-${i}"]:checked`)?.value;if(v)answers[i]=v});
+      const prev=state.monthly[period]||{};
+      state.monthly[period]={...prev,answers,reflection:$('#reflectionInput').value,theme:$('#themeInput').value,items:[...(Array.isArray(prev.items)?prev.items:items)]};
+      return;
+    }
+    const items=state.weeklyItems;
+    const answers={};
+    items.forEach((_,i)=>{const v=document.querySelector(`input[name="check-${i}"]:checked`)?.value;if(v)answers[i]=v});
+    const wk=weekKey(period);
+    const data={week:wk,answers,reflection:$('#reflectionInput').value};
+    const idx=state.weekly.findIndex(x=>x.week===wk);
+    if(idx>=0) state.weekly[idx]={...state.weekly[idx],...data};
+    else if(items.length||data.reflection) state.weekly.push(data);
+  }
+  function commitMottoFromDom(){
+    const editor=$('#mottoEditor');
+    if(!editor || editor.classList.contains('hidden')) return;
+    const m=$('#homeMonth').value;
+    if(!m) return;
+    state.monthly[m]={...(state.monthly[m]||{}),motto:$('#mottoInput').value};
+  }
+  function commitOpenForms(){commitMissionsFromDom();commitDailyFromDom();commitCheckFromDom();commitMottoFromDom()}
+  function persist(options){if(!options || options.commit!==false) commitOpenForms();saveState();renderAll()}
   function renderSettings(){
     const render=type=>{
       const list=type==='monthly'?monthlyItemsFor(monthlySettingsPeriod()):state.weeklyItems;
@@ -649,7 +677,7 @@
       mode='monthly';
       $('#formPeriod').type='month';
       $('#formPeriod').value=$('#homeMonth').value;
-      persist();
+      persist({commit:false});
       toast('バックアップを復元しました');
     }catch{alert('このアプリのバックアップファイルではないか、ファイルが壊れています。')}
     finally{e.target.value=''}
