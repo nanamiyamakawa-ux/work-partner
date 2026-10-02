@@ -35,6 +35,10 @@
     .mission-jump b { font-size:13px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
     .mission-jump em { font-style:normal; font-size:12px; font-weight:800; color:var(--muted) }
     .mission-add-more { margin-top:16px }
+    .home-status { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; margin:0 0 18px }
+    button.status-card { width:100%; text-align:left; color:inherit; padding:16px 18px }
+    button.status-card strong { display:block; margin:4px 0 2px; font-size:28px; letter-spacing:-.04em; color:#0f739f }
+    button.status-card .note { display:block }
     .half-tabs { display:flex; gap:0; overflow-x:auto; border-bottom:1px solid var(--line); margin:2px 0 6px }
     .half-tabs button { flex:0 0 auto; background:transparent; color:#5d717c; font-weight:800; border-radius:0; padding:12px 16px; margin-bottom:-1px; border-bottom:3px solid transparent; white-space:nowrap }
     .half-tabs button.active { color:#1686b8; border-bottom-color:#1686b8 }
@@ -93,6 +97,7 @@
       nav button { flex:0 0 auto !important }
       .task-row { grid-template-columns:1fr }
       .mission-overview { grid-template-columns:1fr; justify-items:center }
+      .home-status { grid-template-columns:1fr }
       .mission-jump { grid-template-columns:minmax(0,1fr) auto; }
       .mission-jump .bar { grid-column:1 / -1 }
       .daily-actions { justify-content:flex-start; flex-wrap:wrap }
@@ -104,11 +109,16 @@
   <main class="app">
     <section class="page active" id="home">
       <div class="toprow"><div><p class="eyebrow">MONTHLY REVIEW</p><h1 id="homeTitle">今月の振り返り</h1><p class="lede">テーマ・習慣・小さな達成を、次の一か月の力にする。</p></div><input class="period-control" type="month" id="homeMonth" /></div>
+      <div class="home-status">
+        <button type="button" class="card status-card" data-go="mission"><span class="eyebrow">ミッション</span><strong id="homeMissionScore">—</strong><span class="note" id="homeMissionDetail">この半期</span></button>
+        <button type="button" class="card status-card" data-go="daily"><span class="eyebrow">日時タスク</span><strong id="homeDailyScore">—</strong><span class="note" id="homeDailyDetail">この月</span></button>
+        <button type="button" class="card status-card" data-go="learn"><span class="eyebrow">学び</span><strong id="homeLearnScore">—</strong><span class="note" id="homeLearnDetail">この月</span></button>
+      </div>
       <div class="dashboard-grid"><article class="card hero"><p class="eyebrow">WORD TO KEEP</p><div class="motto-view empty-motto" id="mottoView">今月、心にとどめたい言葉を残そう</div><button class="motto-edit" id="editMotto">言葉を変更する</button><div class="motto-editor hidden" id="mottoEditor"><textarea id="mottoInput" placeholder="例：小さな積み重ねが、いちばん遠くへ連れていく"></textarea><div class="save-row"><button class="small-button primary" id="saveMotto">保存する</button><button class="ghost" id="cancelMotto">閉じる</button></div></div><div class="hero-divider"></div><p class="eyebrow">THIS MONTH'S THEME</p><div class="theme-view" id="themeView"></div><button class="edit-link primary small-button" data-go="check">テーマとチェックを入力する</button></article><article class="card score-card"><div class="ring" id="monthRing" style="--value:0"><span id="monthScore">—<small>達成率</small></span></div><div><div class="score-label">今月のチェック結果</div><div class="score-detail" id="monthDetail">項目を設定すると点数が出ます</div><button class="small-button primary" data-go="check">入力を開く</button></div></article><article class="card wide split"><div><h2>成長のグラフ</h2><p class="note">月次の達成率を並べて確認できます。</p><div class="chart-wrap" id="chart"></div></div><div><h2>チェック・トラッカー</h2><p class="note">チェックを保存した月は色がつきます。</p><div class="tracker" id="tracker"></div><div class="legend"><span><i style="background:#dff4eb"></i>月次完了</span><span><i style="background:#fff3d6"></i>途中・週次のみ</span><span><i style="background:#efedf2"></i>未入力</span></div></div></article></div>
     </section>
 
     <section class="page" id="mission">
-      <div class="toprow"><div><p class="eyebrow">MISSION</p><h1>ミッション</h1><p class="lede">年の上期（1月〜6月）と下期（7月〜12月）ごとに設定します。選んだ半期の全体進捗が上に出ます。</p></div><button class="primary" id="addMission" type="button">ミッションを追加</button></div>
+      <div class="toprow"><div><p class="eyebrow">MISSION</p><h1>ミッション</h1><p class="lede">年の上期（1月〜6月）と下期（7月〜12月）ごとに、ミッションと進捗を設定します。</p></div><button class="primary" id="addMission" type="button">ミッションを追加</button></div>
       <div class="half-tabs" id="missionHalfTabs" role="tablist" aria-label="半期"></div>
       <p class="note" id="missionHalfRange"></p>
       <div id="missionSummary"></div>

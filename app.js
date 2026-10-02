@@ -127,6 +127,7 @@
     $$('nav button').forEach(b=>b.classList.toggle('active',b.dataset.page===id));
     $$('.page').forEach(p=>p.classList.toggle('active',p.id===id));
     document.querySelector(`nav button[data-page="${id}"]`)?.scrollIntoView({inline:'nearest',block:'nearest'});
+    if(id==='home') renderHome();
     if(id==='report') renderReport();
     if(id==='mission') renderMissions();
     if(id==='daily') renderDaily();
@@ -273,6 +274,21 @@
     $('#monthRing').style.setProperty('--value',sc??0);
     $('#monthScore').innerHTML=`${sc??'—'}<small>達成率</small>`;
     $('#monthDetail').textContent=sc===null?'項目を設定すると点数が出ます':`${monthItems.length}項目中 ${Object.values(r.answers||{}).filter(x=>x==='yes').length}項目できた`;
+    const halfKey=halfFromDate(`${m}-01`)||currentHalfKey();
+    const halfMissions=state.missions.filter(item=>missionPeriodOf(item)===halfKey && missionHasContent(item));
+    const halfTasks=halfMissions.flatMap(item=>item.tasks||[]);
+    const halfP=progressOf(halfTasks);
+    $('#homeMissionScore').textContent=halfP.total?`${halfP.pct}%`:halfMissions.length?`${halfMissions.length}件`:'—';
+    $('#homeMissionDetail').textContent=halfMissions.length?`${halfLabel(halfKey)}・${halfMissions.length}件・タスク ${halfP.done}/${halfP.total}`:`${halfLabel(halfKey)}のミッションはまだありません`;
+    const monthDays=Object.entries(state.daily).filter(([date,rec])=>date.startsWith(m)&&rec&&((rec.tasks||[]).length||String(rec.reflection||'').trim()));
+    const dailyTasks=monthDays.flatMap(([,rec])=>rec.tasks||[]);
+    const dailyP=progressOf(dailyTasks);
+    $('#homeDailyScore').textContent=dailyP.total?`${dailyP.pct}%`:monthDays.length?`${monthDays.length}日`:'—';
+    $('#homeDailyDetail').textContent=monthDays.length?`${monthDays.length}日・${dailyP.done}/${dailyP.total}完了`:'この月の日時タスクはまだありません';
+    const monthPosts=state.learnings.filter(post=>(post.date||'').startsWith(m));
+    const learnDays=new Set(monthPosts.map(post=>post.date)).size;
+    $('#homeLearnScore').textContent=monthPosts.length?`${learnDays}日`:'—';
+    $('#homeLearnDetail').textContent=monthPosts.length?`${learnDays}日・${monthPosts.length}件`:'この月の学びはまだありません';
     renderChart();
     const months=chartData();
     $('#tracker').innerHTML=months.map(({m:month,s})=>{
@@ -335,10 +351,14 @@
     const label=p.total?`<span>${p.done} / ${p.total} 完了</span><span>${p.pct}%</span>`:'<span>タスクを追加すると進捗が出ます</span><span>—</span>';
     return `<article class="card mission-card" data-mid="${esc(m.id)}"><div class="mission-head"><h2>${esc(m.title)||'新しいミッション'}</h2><button type="button" class="ghost" data-action="delete-mission" data-id="${esc(m.id)}">削除</button></div><label class="field"><span>ミッション名</span><input class="mission-title" value="${esc(m.title)}" placeholder="例：問い合わせ対応を当日中に返す"></label><label class="field"><span>対応内容</span><textarea class="mission-response" placeholder="何に対して、どこまで、どのように対応するかを書く">${esc(m.response)}</textarea></label><label class="field"><span>ミッションの期日</span><input class="mission-due form-date" type="date" value="${esc(m.due)}"></label><h3>タスク分解</h3><div class="check-list">${m.tasks.length?m.tasks.map(missionTaskRow).join(''):'<div class="empty">内容をタスクに分けると、進捗が見えるようになります。</div>'}</div><div class="add-row"><input class="new-task" placeholder="例：原因を切り分ける"><button type="button" class="small-button primary" data-action="add-task">タスクを追加</button></div><div class="bar-label">${label}</div><div class="bar" role="img" aria-label="タスク進捗 ${p.pct}%"><i style="width:${p.pct}%"></i></div></article>`;
   }
+  function missionHasContent(m){
+    if((m.title||'').trim()||(m.response||'').trim()||m.due) return true;
+    return (m.tasks||[]).some(t=>(t.title||'').trim()||t.due||t.status==='doing'||t.status==='done');
+  }
   function renderMissionSummary(){
     const root=$('#missionSummary');
     if(!root) return;
-    const missions=state.missions.filter(m=>missionPeriodOf(m)===missionHalf);
+    const missions=state.missions.filter(m=>missionPeriodOf(m)===missionHalf && missionHasContent(m));
     const halfName=halfLabel(missionHalf);
     const tasks=missions.flatMap(m=>m.tasks||[]);
     const p=progressOf(tasks);
