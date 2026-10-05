@@ -192,15 +192,18 @@
     const ids=new Set(current.map(m=>m.id));
     state.missions=[...current,...state.missions.filter(m=>missionPeriodOf(m)!==missionHalf && !ids.has(m.id))];
   }
+  function dailyRowsFromDom(){
+    return [...document.querySelectorAll('#dailyTasks .check-row, #dailyArchive .check-row')].map(row=>({
+      id:row.dataset.id,
+      title:row.querySelector('.task-name').value,
+      status:row.querySelector('input[type="radio"]:checked')?.value||'todo'
+    }));
+  }
   function commitDailyFromDom(){
     if(!domReady || !$('#dailyTasks')) return;
     if(!dailyShown) return;
     state.daily[dailyShown]={
-      tasks:[...document.querySelectorAll('#dailyTasks .check-row')].map(row=>({
-        id:row.dataset.id,
-        title:row.querySelector('.task-name').value,
-        status:row.querySelector('input[type="radio"]:checked')?.value||'todo'
-      })),
+      tasks:dailyRowsFromDom(),
       reflection:$('#dailyReflection').value
     };
   }
@@ -452,7 +455,7 @@
     if(bar) bar.style.width=p.pct+'%';
   }
   function paintDailyProgress(){
-    const tasks=[...document.querySelectorAll('#dailyTasks .check-row')].map(row=>({status:row.querySelector('input[type="radio"]:checked')?.value||'todo'}));
+    const tasks=dailyRowsFromDom().map(t=>({status:t.status}));
     const p=progressOf(tasks);
     const label=$('#dailyBarLabel');
     if(label) label.innerHTML=p.total?`<span>${p.done} / ${p.total} 完了</span><span>${p.pct}%</span>`:'<span>タスクを追加すると進捗が出ます</span><span>—</span>';
@@ -462,10 +465,30 @@
     $('#dailyScore').innerHTML=`${p.total?p.pct:'—'}<small>達成率</small>`;
     $('#dailyDetail').textContent=p.total?`${p.total}件中 ${p.done}件完了`:'タスクを追加すると進捗が出ます';
   }
+  function dailyTaskRowHtml(t){
+    return `<div class="check-row" data-id="${esc(t.id)}"><input class="task-name" value="${esc(t.title)}" aria-label="タスク名"><div class="daily-actions">${statusChoice('d-'+t.id,'d-'+t.id,t.status)}<button type="button" class="delete" data-action="delete-daily" data-id="${esc(t.id)}" title="削除">×</button></div></div>`;
+  }
   function renderDaily(){
     const rec=state.daily[dailyShown]||{tasks:[],reflection:''};
     const tasks=Array.isArray(rec.tasks)?rec.tasks:[];
-    $('#dailyTasks').innerHTML=tasks.length?tasks.map(t=>`<div class="check-row" data-id="${esc(t.id)}"><input class="task-name" value="${esc(t.title)}" aria-label="タスク名"><div class="daily-actions">${statusChoice('d-'+t.id,'d-'+t.id,t.status)}<button type="button" class="delete" data-action="delete-daily" data-id="${esc(t.id)}" title="削除">×</button></div></div>`).join(''):'<div class="empty">この日のタスクを追加してください。</div>';
+    const open=tasks.filter(t=>t.status!=='done');
+    const done=tasks.filter(t=>t.status==='done');
+    const archiveWrap=$('#dailyArchiveWrap');
+    const archiveWasOpen=!!archiveWrap?.open;
+    $('#dailyTasks').innerHTML=open.length?open.map(dailyTaskRowHtml).join(''):`<div class="empty">${done.length?'未完了のタスクはありません。':'この日のタスクを追加してください。'}</div>`;
+    if(archiveWrap){
+      if(done.length){
+        archiveWrap.hidden=false;
+        $('#dailyArchiveCount').textContent=String(done.length);
+        $('#dailyArchive').innerHTML=done.map(dailyTaskRowHtml).join('');
+        archiveWrap.open=archiveWasOpen;
+      }else{
+        archiveWrap.hidden=true;
+        archiveWrap.open=false;
+        $('#dailyArchiveCount').textContent='0';
+        $('#dailyArchive').innerHTML='';
+      }
+    }
     $('#dailyReflection').value=rec.reflection||'';
     paintDailyProgress();
   }
@@ -698,7 +721,8 @@
     if(e.target.closest('#dailyCard')){
       commitDailyFromDom();
       saveState();
-      paintDailyProgress();
+      if(e.target.matches('input[type="radio"]')) renderDaily();
+      else paintDailyProgress();
     }
   });
   document.addEventListener('keydown',e=>{
