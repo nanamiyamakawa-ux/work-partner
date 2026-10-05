@@ -725,12 +725,6 @@
       else paintDailyProgress();
     }
   });
-  document.addEventListener('keydown',e=>{
-    if(e.key!=='Enter' || !e.target.classList.contains('new-task')) return;
-    e.preventDefault();
-    const btn=e.target.closest('.add-row')?.querySelector('[data-action="add-task"]');
-    if(btn) addMissionTask(btn);
-  });
   window.addEventListener('beforeunload',()=>{try{commitOpenForms();saveState()}catch{}});
 
   $('#monthlyTab').onclick=()=>{mode='monthly';$('#formPeriod').type='month';$('#formPeriod').value=$('#homeMonth').value;renderForm();renderSettings()};
@@ -773,7 +767,6 @@
     setMissionHalf(tab.dataset.halfKey);
   };
   $('#addDailyTaskBtn').onclick=addDailyTask;
-  $('#addDailyTask').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();addDailyTask()}});
   $('#dailyDate').addEventListener('change',()=>{
     commitDailyFromDom();
     saveState();
